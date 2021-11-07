@@ -22,8 +22,8 @@ type Collection interface {
 	UpdateMany(ctx context.Context, filter interface{}, update interface{}, opts ...*options.UpdateOptions) (*mongo.UpdateResult, error)
 	DeleteOne(ctx context.Context, filter interface{}, opts ...*options.DeleteOptions) (*mongo.DeleteResult, error)
 	DeleteMany(ctx context.Context, filter interface{}, opts ...*options.DeleteOptions) (*mongo.DeleteResult, error)
-	FindOne(ctx context.Context, filter map[string]interface{}, result interface{}, opts ...*options.FindOneOptions) error
-	Find(ctx context.Context, filter map[string]interface{}, results interface{}, opts ...*options.FindOptions) error
+	FindOne(ctx context.Context, opt *FindOneOption, result interface{}) error
+	Find(ctx context.Context, opt *FindOption, results interface{}) error
 	FindOneAndDelete(ctx context.Context, filter map[string]interface{}, target interface{}, opts ...*options.FindOneAndDeleteOptions) error
 	FindOneAndUpdate(ctx context.Context, filter map[string]interface{}, update interface{}, opts ...*options.FindOneAndUpdateOptions) error
 	FindOneAndReplace(ctx context.Context, filter map[string]interface{}, replace interface{}, opts ...*options.FindOneAndReplaceOptions) error
@@ -117,8 +117,22 @@ func (coll *MongoCollection) DeleteMany(ctx context.Context, filter interface{},
 	return coll.Collection.DeleteMany(ctx, filter, opts...)
 }
 
-func (coll *MongoCollection) FindOne(ctx context.Context, filter map[string]interface{}, result interface{}, opts ...*options.FindOneOptions) error {
-	mongoFilter := coll.intoMongoFilter(filter)
+func (coll *MongoCollection) FindOne(ctx context.Context, opt *FindOneOption, result interface{}) error {
+	opts := make([]*options.FindOneOptions, 0)
+
+	mongoFilter := bson.M{}
+
+	findOneOp := options.FindOne()
+	if opt != nil {
+		mongoFilter = intoMongoFilter(opt.Filter)
+
+		if len(opt.SortBy) > 0 {
+			opts = append(opts, findOneOp.SetSort(buildSortParams(opt.SortBy)))
+		}
+
+		opts = append(opts, opt.Opts...)
+	}
+
 	res := coll.Collection.FindOne(ctx, mongoFilter, opts...)
 	if err := res.Err(); err != nil {
 		return err
@@ -127,8 +141,23 @@ func (coll *MongoCollection) FindOne(ctx context.Context, filter map[string]inte
 	return res.Decode(result)
 }
 
-func (coll *MongoCollection) Find(ctx context.Context, filter map[string]interface{}, results interface{}, opts ...*options.FindOptions) (err error) {
-	mongoFilter := coll.intoMongoFilter(filter)
+func (coll *MongoCollection) Find(ctx context.Context, opt *FindOption, results interface{}) (err error) {
+	opts := make([]*options.FindOptions, 0)
+
+	mongoFilter := bson.M{}
+
+	findOp := options.Find()
+	if opt != nil {
+		mongoFilter = intoMongoFilter(opt.Filter)
+
+		opts = append(opts, findOp.SetLimit(opt.Limit))
+		if len(opt.SortBy) > 0 {
+			opts = append(opts, findOp.SetSort(buildSortParams(opt.SortBy)))
+		}
+
+		opts = append(opts, opt.Opts...)
+	}
+
 	cursor, err := coll.Collection.Find(ctx, mongoFilter, opts...)
 	if err != nil {
 		return err
@@ -143,7 +172,7 @@ func (coll *MongoCollection) Find(ctx context.Context, filter map[string]interfa
 }
 
 func (coll *MongoCollection) FindOneAndDelete(ctx context.Context, filter map[string]interface{}, target interface{}, opts ...*options.FindOneAndDeleteOptions) error {
-	mongoFilter := coll.intoMongoFilter(filter)
+	mongoFilter := intoMongoFilter(filter)
 	res := coll.Collection.FindOneAndDelete(ctx, mongoFilter, opts...)
 	if res.Err() != nil {
 		return res.Err()
@@ -153,19 +182,19 @@ func (coll *MongoCollection) FindOneAndDelete(ctx context.Context, filter map[st
 }
 
 func (coll *MongoCollection) FindOneAndUpdate(ctx context.Context, filter map[string]interface{}, update interface{}, opts ...*options.FindOneAndUpdateOptions) error {
-	mongoFilter := coll.intoMongoFilter(filter)
+	mongoFilter := intoMongoFilter(filter)
 	res := coll.Collection.FindOneAndUpdate(ctx, mongoFilter, update, opts...)
 	return res.Err()
 }
 
 func (coll *MongoCollection) FindOneAndReplace(ctx context.Context, filter map[string]interface{}, replace interface{}, opts ...*options.FindOneAndReplaceOptions) error {
-	mongoFilter := coll.intoMongoFilter(filter)
+	mongoFilter := intoMongoFilter(filter)
 	res := coll.Collection.FindOneAndReplace(ctx, mongoFilter, replace, opts...)
 	return res.Err()
 }
 
 func (coll *MongoCollection) ReplaceOne(ctx context.Context, filter map[string]interface{}, replacement interface{}, opts ...*options.ReplaceOptions) (*mongo.UpdateResult, error) {
-	mongoFilter := coll.intoMongoFilter(filter)
+	mongoFilter := intoMongoFilter(filter)
 	return coll.Collection.ReplaceOne(ctx, mongoFilter, replacement, opts...)
 }
 
@@ -191,12 +220,12 @@ func (coll *MongoCollection) Clone(opts ...*options.CollectionOptions) (*mongo.C
 }
 
 func (coll *MongoCollection) CountDocuments(ctx context.Context, filter map[string]interface{}, opts ...*options.CountOptions) (int64, error) {
-	mongoFilter := coll.intoMongoFilter(filter)
+	mongoFilter := intoMongoFilter(filter)
 	return coll.Collection.CountDocuments(ctx, mongoFilter, opts...)
 }
 
 func (coll *MongoCollection) Distinct(ctx context.Context, fieldName string, filter map[string]interface{}, opts ...*options.DistinctOptions) ([]interface{}, error) {
-	mongoFilter := coll.intoMongoFilter(filter)
+	mongoFilter := intoMongoFilter(filter)
 	return coll.Collection.Distinct(ctx, fieldName, mongoFilter, opts...)
 }
 
@@ -208,28 +237,62 @@ func (coll *MongoCollection) Watch(ctx context.Context, pipeline interface{}, op
 	return coll.Collection.Watch(ctx, pipeline, opts...)
 }
 
-func (coll *MongoCollection) intoMongoFilter(filter map[string]interface{}) (f bson.M) {
+func intoMongoFilter(filter map[string]interface{}) (f bson.M) {
+	f = bson.M{}
+
 	if len(filter) == 0 {
-		return bson.M{}
+		return f
 	}
 
-	f = bson.M(filter)
+	mongoIdKey := "_id"
 
-	idKey := "_id"
-	for key := range f {
-		if key == idKey {
-			idKeyVal, ok := f[key].(string)
-			if !ok {
-				break
-			}
+	for key, value := range filter {
+		f[key] = value
 
-			keyVal, err := primitive.ObjectIDFromHex(idKeyVal)
+		switch v := value.(type) {
+		case string:
+			f[key] = value.(string)
+		case int:
+			f[key] = v
+		case int16:
+			f[key] = v
+		case int32:
+			f[key] = v
+		case int64:
+			f[key] = v
+		case float32:
+			f[key] = v
+		case float64:
+			f[key] = v
+		case bool:
+			f[key] = v
+		default:
+			f[key] = v
+		}
+
+		if key == mongoIdKey {
+			objectId, err := idToMongoObjectId(value)
 			if err == nil {
-				f[key] = keyVal
+				f[key] = objectId
 			}
-			break
 		}
 	}
 
 	return
+}
+
+func idToMongoObjectId(id interface{}) (primitive.ObjectID, error) {
+	strId, ok := id.(string)
+	if !ok {
+		return primitive.NilObjectID, errors.New("mongo: _id should be in string")
+	}
+	return primitive.ObjectIDFromHex(strId)
+}
+
+func buildSortParams(params []Ordering) bson.D {
+	var sortParams bson.D
+	for _, param := range params {
+		sortParams = append(sortParams, primitive.E{Key: param.GetKey(), Value: param.GetOrder()})
+	}
+	return sortParams
 }

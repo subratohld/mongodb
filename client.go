@@ -2,7 +2,6 @@ package mongodb
 
 import (
 	"context"
-	"fmt"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -21,9 +20,29 @@ type Client interface {
 	Watch(ctx context.Context, pipeline interface{}, opts ...*options.ChangeStreamOptions) (*mongo.ChangeStream, error)
 }
 
-func NewClient(ctx context.Context, host, port string) (Client, error) {
-	url := fmt.Sprintf("mongodb://%s:%s", host, port)
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(url))
+// Direct=> mongodb://localhost:27017/?connect=direct
+// Replicaset=> mongodb://localhost:27017,localhost:27018/?replicaSet=replset
+// Sharded=> mongodb://localhost:27017,localhost:27018
+// mongodb://ldap-user:ldap-pwd@localhost:27017/?authMechanism=PLAIN
+func NewClient(ctx context.Context, uri string) (Client, error) {
+	clientOpts := options.Client().ApplyURI(uri)
+	return connect(ctx, clientOpts)
+}
+
+// AWS Credential=> options.Credential{AuthMechanism: "MONGODB-AWS", Username: "accessKeyId", Password: "secretAccessKey"}
+// AWS Assumerole=> options.Credential{AuthMechanism: "MONGODB-AWS", Username: "accessKeyId", Password: "secretAccessKey", AuthMechanismProperties: map[string]string{"AWS_SESSION_TOKEN": "sessionToken"}}
+func NewClientWithCredential(ctx context.Context, cred options.Credential) (Client, error) {
+	clientOpts := options.Client().SetAuth(cred)
+	return connect(ctx, clientOpts)
+}
+
+func NewClientWithUriCredential(ctx context.Context, uri string, cred options.Credential) (Client, error) {
+	clientOpts := options.Client().ApplyURI(uri).SetAuth(cred)
+	return connect(ctx, clientOpts)
+}
+
+func connect(ctx context.Context, opts ...*options.ClientOptions) (Client, error) {
+	client, err := mongo.Connect(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -32,8 +51,9 @@ func NewClient(ctx context.Context, host, port string) (Client, error) {
 		return nil, err
 	}
 
-	mClient := &MongoClient{}
-	mClient.Client = client
+	mClient := &MongoClient{
+		Client: client,
+	}
 	return mClient, nil
 }
 
