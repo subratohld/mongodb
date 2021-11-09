@@ -36,36 +36,36 @@ type Collection interface {
 	Watch(ctx context.Context, pipeline interface{}, opts ...*options.ChangeStreamOptions) (*mongo.ChangeStream, error)
 }
 
-func newCollection(db *MongoDatabase, name string, opts ...*options.CollectionOptions) Collection {
+func newCollection(db *database, name string, opts ...*options.CollectionOptions) Collection {
 	coll := db.Database.Collection(name, opts...)
-	return &MongoCollection{
+	return &collection{
 		db:         db,
 		Collection: coll,
 	}
 }
 
-type MongoCollection struct {
-	db *MongoDatabase
+type collection struct {
+	db *database
 	*mongo.Collection
 }
 
-func (coll *MongoCollection) Database() Database {
+func (coll *collection) Database() Database {
 	return coll.db
 }
 
-func (coll *MongoCollection) Name() string {
+func (coll *collection) Name() string {
 	return coll.Collection.Name()
 }
 
-func (coll *MongoCollection) Drop(ctx context.Context) error {
+func (coll *collection) Drop(ctx context.Context) error {
 	return coll.Collection.Drop(ctx)
 }
 
-func (coll *MongoCollection) Indexes() mongo.IndexView {
+func (coll *collection) Indexes() mongo.IndexView {
 	return coll.Collection.Indexes()
 }
 
-func (coll *MongoCollection) InsertOne(ctx context.Context, document interface{}, opts ...*options.InsertOneOptions) (string, error) {
+func (coll *collection) InsertOne(ctx context.Context, document interface{}, opts ...*options.InsertOneOptions) (string, error) {
 	res, err := coll.Collection.InsertOne(ctx, document, opts...)
 	if err != nil {
 		return "", err
@@ -79,7 +79,7 @@ func (coll *MongoCollection) InsertOne(ctx context.Context, document interface{}
 	return obj.Hex(), nil
 }
 
-func (coll *MongoCollection) InsertMany(ctx context.Context, documents []interface{}, opts ...*options.InsertManyOptions) ([]string, error) {
+func (coll *collection) InsertMany(ctx context.Context, documents []interface{}, opts ...*options.InsertManyOptions) ([]string, error) {
 	res, err := coll.Collection.InsertMany(ctx, documents, opts...)
 	if err != nil {
 		return nil, err
@@ -96,27 +96,27 @@ func (coll *MongoCollection) InsertMany(ctx context.Context, documents []interfa
 	return ids, nil
 }
 
-func (coll *MongoCollection) UpdateByID(ctx context.Context, id interface{}, update interface{}, opts ...*options.UpdateOptions) (*mongo.UpdateResult, error) {
+func (coll *collection) UpdateByID(ctx context.Context, id interface{}, update interface{}, opts ...*options.UpdateOptions) (*mongo.UpdateResult, error) {
 	return coll.Collection.UpdateByID(ctx, id, update, opts...)
 }
 
-func (coll *MongoCollection) UpdateOne(ctx context.Context, filter interface{}, update interface{}, opts ...*options.UpdateOptions) (*mongo.UpdateResult, error) {
+func (coll *collection) UpdateOne(ctx context.Context, filter interface{}, update interface{}, opts ...*options.UpdateOptions) (*mongo.UpdateResult, error) {
 	return coll.Collection.UpdateOne(ctx, filter, update, opts...)
 }
 
-func (coll *MongoCollection) UpdateMany(ctx context.Context, filter interface{}, update interface{}, opts ...*options.UpdateOptions) (*mongo.UpdateResult, error) {
+func (coll *collection) UpdateMany(ctx context.Context, filter interface{}, update interface{}, opts ...*options.UpdateOptions) (*mongo.UpdateResult, error) {
 	return coll.Collection.UpdateMany(ctx, filter, update, opts...)
 }
 
-func (coll *MongoCollection) DeleteOne(ctx context.Context, filter interface{}, opts ...*options.DeleteOptions) (*mongo.DeleteResult, error) {
+func (coll *collection) DeleteOne(ctx context.Context, filter interface{}, opts ...*options.DeleteOptions) (*mongo.DeleteResult, error) {
 	return coll.Collection.DeleteOne(ctx, filter, opts...)
 }
 
-func (coll *MongoCollection) DeleteMany(ctx context.Context, filter interface{}, opts ...*options.DeleteOptions) (*mongo.DeleteResult, error) {
+func (coll *collection) DeleteMany(ctx context.Context, filter interface{}, opts ...*options.DeleteOptions) (*mongo.DeleteResult, error) {
 	return coll.Collection.DeleteMany(ctx, filter, opts...)
 }
 
-func (coll *MongoCollection) FindOne(ctx context.Context, filter interface{}, result interface{}, opts ...*options.FindOneOptions) error {
+func (coll *collection) FindOne(ctx context.Context, filter interface{}, result interface{}, opts ...*options.FindOneOptions) error {
 	res := coll.Collection.FindOne(ctx, filter, opts...)
 	if err := res.Err(); err != nil {
 		return err
@@ -125,7 +125,7 @@ func (coll *MongoCollection) FindOne(ctx context.Context, filter interface{}, re
 	return res.Decode(result)
 }
 
-func (coll *MongoCollection) Find(ctx context.Context, filter interface{}, results interface{}, opts ...*options.FindOptions) (err error) {
+func (coll *collection) Find(ctx context.Context, filter interface{}, results interface{}, opts ...*options.FindOptions) (err error) {
 	cursor, err := coll.Collection.Find(ctx, filter, opts...)
 	if err != nil {
 		return err
@@ -139,7 +139,7 @@ func (coll *MongoCollection) Find(ctx context.Context, filter interface{}, resul
 	return
 }
 
-func (coll *MongoCollection) FindOneAndDelete(ctx context.Context, filter map[string]interface{}, target interface{}, opts ...*options.FindOneAndDeleteOptions) error {
+func (coll *collection) FindOneAndDelete(ctx context.Context, filter map[string]interface{}, target interface{}, opts ...*options.FindOneAndDeleteOptions) error {
 	res := coll.Collection.FindOneAndDelete(ctx, filter, opts...)
 	if res.Err() != nil {
 		return res.Err()
@@ -148,21 +148,21 @@ func (coll *MongoCollection) FindOneAndDelete(ctx context.Context, filter map[st
 	return res.Decode(target)
 }
 
-func (coll *MongoCollection) FindOneAndUpdate(ctx context.Context, filter map[string]interface{}, update interface{}, opts ...*options.FindOneAndUpdateOptions) error {
+func (coll *collection) FindOneAndUpdate(ctx context.Context, filter map[string]interface{}, update interface{}, opts ...*options.FindOneAndUpdateOptions) error {
 	res := coll.Collection.FindOneAndUpdate(ctx, filter, update, opts...)
 	return res.Err()
 }
 
-func (coll *MongoCollection) FindOneAndReplace(ctx context.Context, filter map[string]interface{}, replace interface{}, opts ...*options.FindOneAndReplaceOptions) error {
+func (coll *collection) FindOneAndReplace(ctx context.Context, filter map[string]interface{}, replace interface{}, opts ...*options.FindOneAndReplaceOptions) error {
 	res := coll.Collection.FindOneAndReplace(ctx, filter, replace, opts...)
 	return res.Err()
 }
 
-func (coll *MongoCollection) ReplaceOne(ctx context.Context, filter map[string]interface{}, replacement interface{}, opts ...*options.ReplaceOptions) (*mongo.UpdateResult, error) {
+func (coll *collection) ReplaceOne(ctx context.Context, filter map[string]interface{}, replacement interface{}, opts ...*options.ReplaceOptions) (*mongo.UpdateResult, error) {
 	return coll.Collection.ReplaceOne(ctx, filter, replacement, opts...)
 }
 
-func (coll *MongoCollection) Aggregate(ctx context.Context, pipeline interface{}, target interface{}, opts ...*options.AggregateOptions) (err error) {
+func (coll *collection) Aggregate(ctx context.Context, pipeline interface{}, target interface{}, opts ...*options.AggregateOptions) (err error) {
 	cursor, err := coll.Collection.Aggregate(ctx, pipeline, opts...)
 	if err != nil {
 		return
@@ -175,26 +175,26 @@ func (coll *MongoCollection) Aggregate(ctx context.Context, pipeline interface{}
 	return cursor.All(ctx, target)
 }
 
-func (coll *MongoCollection) BulkWrite(ctx context.Context, models []mongo.WriteModel, opts ...*options.BulkWriteOptions) (*mongo.BulkWriteResult, error) {
+func (coll *collection) BulkWrite(ctx context.Context, models []mongo.WriteModel, opts ...*options.BulkWriteOptions) (*mongo.BulkWriteResult, error) {
 	return coll.Collection.BulkWrite(ctx, models, opts...)
 }
 
-func (coll *MongoCollection) Clone(opts ...*options.CollectionOptions) (*mongo.Collection, error) {
+func (coll *collection) Clone(opts ...*options.CollectionOptions) (*mongo.Collection, error) {
 	return coll.Collection.Clone(opts...)
 }
 
-func (coll *MongoCollection) CountDocuments(ctx context.Context, filter map[string]interface{}, opts ...*options.CountOptions) (int64, error) {
+func (coll *collection) CountDocuments(ctx context.Context, filter map[string]interface{}, opts ...*options.CountOptions) (int64, error) {
 	return coll.Collection.CountDocuments(ctx, filter, opts...)
 }
 
-func (coll *MongoCollection) Distinct(ctx context.Context, fieldName string, filter map[string]interface{}, opts ...*options.DistinctOptions) ([]interface{}, error) {
+func (coll *collection) Distinct(ctx context.Context, fieldName string, filter map[string]interface{}, opts ...*options.DistinctOptions) ([]interface{}, error) {
 	return coll.Collection.Distinct(ctx, fieldName, filter, opts...)
 }
 
-func (coll *MongoCollection) EstimatedDocumentCount(ctx context.Context, opts ...*options.EstimatedDocumentCountOptions) (int64, error) {
+func (coll *collection) EstimatedDocumentCount(ctx context.Context, opts ...*options.EstimatedDocumentCountOptions) (int64, error) {
 	return coll.Collection.EstimatedDocumentCount(ctx, opts...)
 }
 
-func (coll *MongoCollection) Watch(ctx context.Context, pipeline interface{}, opts ...*options.ChangeStreamOptions) (*mongo.ChangeStream, error) {
+func (coll *collection) Watch(ctx context.Context, pipeline interface{}, opts ...*options.ChangeStreamOptions) (*mongo.ChangeStream, error) {
 	return coll.Collection.Watch(ctx, pipeline, opts...)
 }

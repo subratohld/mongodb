@@ -29,23 +29,23 @@ type Database interface {
 	Watch(ctx context.Context, pipeline interface{}, opts ...*options.ChangeStreamOptions) (*mongo.ChangeStream, error)
 }
 
-func newDB(c *MongoClient, name string, opts ...*options.DatabaseOptions) Database {
+func newDB(c *client, name string, opts ...*options.DatabaseOptions) Database {
 	db := c.Client.Database(name, opts...)
-	return &MongoDatabase{
+	return &database{
 		Database: db,
 		client:   c,
 	}
 }
 
-type MongoDatabase struct {
+type database struct {
 	*mongo.Database
-	client *MongoClient
+	client *client
 }
 
-func (db *MongoDatabase) Client() Client {
+func (db *database) Client() Client {
 	return db.client
 }
 
-func (db *MongoDatabase) Collection(name string, opts ...*options.CollectionOptions) Collection {
+func (db *database) Collection(name string, opts ...*options.CollectionOptions) Collection {
 	return newCollection(db, name, opts...)
 }

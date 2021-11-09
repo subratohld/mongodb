@@ -42,29 +42,29 @@ func NewClientWithUriCredential(ctx context.Context, uri string, cred options.Cr
 }
 
 func connect(ctx context.Context, opts ...*options.ClientOptions) (Client, error) {
-	client, err := mongo.Connect(ctx, opts...)
+	c, err := mongo.Connect(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := client.Ping(ctx, readpref.Primary()); err != nil {
+	if err := c.Ping(ctx, readpref.Primary()); err != nil {
 		return nil, err
 	}
 
-	mClient := &MongoClient{
-		Client: client,
+	mClient := &client{
+		Client: c,
 	}
 	return mClient, nil
 }
 
-type MongoClient struct {
+type client struct {
 	*mongo.Client
 }
 
-func (m *MongoClient) Database(name string, opts ...*options.DatabaseOptions) Database {
+func (m *client) Database(name string, opts ...*options.DatabaseOptions) Database {
 	return newDB(m, name, opts...)
 }
 
-func (m *MongoClient) Disconnect(ctx context.Context) error {
+func (m *client) Disconnect(ctx context.Context) error {
 	return m.Client.Disconnect(ctx)
 }
